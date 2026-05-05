@@ -2,7 +2,10 @@ import { getWhatsAppConfig } from './config.js'
 
 export async function sendWhatsAppText(toPhone, text) {
   const { accessToken, phoneNumberId } = getWhatsAppConfig()
-
+  
+  if (!accessToken) throw new Error("WHATSAPP_ACCESS_TOKEN is missing or empty")
+  if (!phoneNumberId) throw new Error("WHATSAPP_PHONE_NUMBER_ID is missing or empty")
+  
   const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`
 
   console.log("RAW toPhone:", toPhone)
