@@ -1,0 +1,6 @@
+project_id = "ssxwvzmfdawajmxcwkxm"
+
+# El webhook de WhatsApp es público: Meta no manda Authorization header.
+# Sin esta línea, Supabase responde 401 antes de invocar la función.
+[functions.whatsapp-webhook]
+verify_jwt = false

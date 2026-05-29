@@ -71,44 +71,8 @@ export function computeHoursFromStartEnd(startTime, endTime) {
   return Math.round((diff / 60) * 100) / 100
 }
 
-export function parseMultipleWorkLogs(text) {
-  const logs = []
-  const lines = text.split(/\n|,/).map(l => l.trim()).filter(Boolean)
-
-  for (const line of lines) {
-    const parts = line.split(/\s+/)
-    if (parts.length < 2) continue
-
-    const employeeName = parts.slice(0, parts.length - 1).join(" ")
-    const last = parts[parts.length - 1]
-
-    if (/^\d+(\.\d+)?$/.test(last)) {
-      logs.push({
-        employeeName,
-        workedHours: Number(last),
-        dateISO: new Date().toISOString().slice(0, 10)
-      })
-      continue
-    }
-
-    if (parts.length >= 3) {
-      const start = parts[parts.length - 2]
-      const end = parts[parts.length - 1]
-
-      if (/^\d{1,2}:\d{2}$/.test(start) && /^\d{1,2}:\d{2}$/.test(end)) {
-        const name = parts.slice(0, parts.length - 2).join(" ")
-        logs.push({
-          employeeName: name,
-          startTime: start,
-          endTime: end,
-          dateISO: new Date().toISOString().slice(0, 10)
-        })
-      }
-    }
-  }
-
-  return logs
-}
+const HORAS_EXAMPLE =
+  'Ejemplo:\nHORAS\nEmpleado: Juan Pérez\nFecha: 02/03/2026\nEntrada: 09:00\nSalida: 18:00\n\nO simplemente:\nJuan Pérez 8'
 
 export function parseIncomingMessage(text) {
   const raw = text.trim()
@@ -118,12 +82,13 @@ export function parseIncomingMessage(text) {
   const lines = s.split('\n').map(l => l.trim()).filter(Boolean)
 
   if (lines.length > 0) {
-    const firstLine = lines[0].toUpperCase()
-    const supportedCategory = ['HORAS', 'ALTA', 'BAJA', 'EMPLEADOS', 'EXPORTAR', 'BORRAR', 'TARIFA']
+    // Primera palabra (no la línea entera) para detectar la categoría.
+    // Permite "ALTA Juan Perez", "TARIFA Juan Perez 1500", etc. inline.
+    const firstWord = lines[0].toUpperCase().split(/\s+/)[0]
+    const supportedCategory = ['HORAS', 'ALTA', 'BAJA', 'EMPLEADOS', 'EXPORTAR', 'BORRAR', 'TARIFA', 'TARIFAS']
 
-    if (supportedCategory.includes(firstLine) || firstLine.startsWith('BORRAR')) {
-
-      const category = firstLine
+    if (supportedCategory.includes(firstWord)) {
+      const category = firstWord
       const bodyLines = lines.slice(1)
 
       // ── EXPORTAR ──────────────────────────────────────────────
@@ -134,7 +99,7 @@ export function parseIncomingMessage(text) {
       // ── BORRAR ────────────────────────────────────────────────
       // Soporta: "BORRAR MES", "BORRAR SEMANA 1", etc. (en una o dos líneas)
       const borrarInline = raw.match(/^BORRAR\s+(.+)$/i)
-      if (borrarInline) {
+      if (category === 'BORRAR' && borrarInline) {
         const what = borrarInline[1].trim().toUpperCase()
         if (what === 'MES') return { kind: 'clear_month' }
 
@@ -148,11 +113,11 @@ export function parseIncomingMessage(text) {
       // Soporta: "TARIFA\nJuan Perez 1500" o "TARIFA Juan Perez 1500"
       if (category === 'TARIFA') {
         const tarifaOneLine = s.match(/^TARIFA\s+(.+)\s+(\d+(?:[.,]\d+)?)$/i)
-        if (tarifaInline) {
+        if (tarifaOneLine) {
           return {
             kind: 'set_rate',
-            employeeName: tarifaInline[1].trim(),
-            hourlyRate: Number(tarifaInline[2].replace(',', '.'))
+            employeeName: tarifaOneLine[1].trim(),
+            hourlyRate: Number(tarifaOneLine[2].replace(',', '.'))
           }
         }
 
@@ -170,20 +135,19 @@ export function parseIncomingMessage(text) {
 
         return {
           kind: 'error',
-          message: 'Formato inválido.\nEj: TARIFA\nJuan Perez 1500'
+          message: 'Formato inválido.\nEj: TARIFA Juan Perez 1500\nO:\nTARIFA\nJuan Perez 1500'
         }
       }
 
-      // ── EMPLEADOS ─────────────────────────────────────────────
-      if (category === 'EMPLEADOS') {
-        return { kind: 'list_employees' }
-      }
+      // ── EMPLEADOS / TARIFAS ───────────────────────────────────
+      if (category === 'EMPLEADOS') return { kind: 'list_employees' }
+      if (category === 'TARIFAS') return { kind: 'list_rates' }
 
       // ── ALTA ──────────────────────────────────────────────────
       if (category === 'ALTA') {
         const altaInline = raw.match(/^ALTA\s+(.+)$/i)
         if (altaInline) return { kind: 'add_employee', employeeName: altaInline[1].trim() }
-        if (bodyLines.length === 0) return { kind: 'error', message: 'Debes indicar el nombre del empleado.\nEj: ALTA\nJuan Pérez' }
+        if (bodyLines.length === 0) return { kind: 'error', message: 'Debes indicar el nombre del empleado.\nEj: ALTA Juan Pérez' }
         return { kind: 'add_employee', employeeName: bodyLines[0].trim() }
       }
 
@@ -191,7 +155,7 @@ export function parseIncomingMessage(text) {
       if (category === 'BAJA') {
         const bajaInline = raw.match(/^BAJA\s+(.+)$/i)
         if (bajaInline) return { kind: 'del_employee', employeeName: bajaInline[1].trim() }
-        if (bodyLines.length === 0) return { kind: 'error', message: 'Debes indicar el nombre del empleado.\nEj: BAJA\nJuan Pérez' }
+        if (bodyLines.length === 0) return { kind: 'error', message: 'Debes indicar el nombre del empleado.\nEj: BAJA Juan Pérez' }
         return { kind: 'del_employee', employeeName: bodyLines[0].trim() }
       }
 
@@ -215,7 +179,7 @@ export function parseIncomingMessage(text) {
             const startTime = normalizeTime(startRaw)
             const endTime = normalizeTime(endRaw)
             if (!startTime || !endTime) {
-              return { kind: 'error', message: 'Formato inválido. Ej: "HORAS\\nEmpleado: Juan Pérez\\nFecha: 02/03/2026\\nEntrada: 09:00\\nSalida: 18:00"' }
+              return { kind: 'error', message: `Formato inválido.\n${HORAS_EXAMPLE}` }
             }
             let dateISO = todayISO()
             if (dateRaw) {
@@ -235,98 +199,108 @@ export function parseIncomingMessage(text) {
           }
         }
 
-        // Variante B sin etiquetas
-        const seq = bodyLines
-
-        if (seq.length >= 4) {
-          const employeeQuery = seq[0]
-          const dateISO = parseDateToISO(seq[1])
-          const startTime = normalizeTime(seq[2])
-          const endTime = normalizeTime(seq[3])
-          if (dateISO && startTime && endTime) return { kind: 'start_end', employeeQuery, dateISO, startTime, endTime }
+        // Variante sin etiquetas — extraer fecha en cualquier posición primero,
+        // y el resto en orden: nombre, [entrada, salida] o nombre, horas.
+        const seq = [...bodyLines]
+        let dateISO = todayISO()
+        for (let i = 0; i < seq.length; i++) {
+          const parsed = parseDateToISO(seq[i])
+          if (parsed) {
+            dateISO = parsed
+            seq.splice(i, 1)
+            break
+          }
         }
 
         if (seq.length >= 3) {
           const employeeQuery = seq[0]
           const startTime = normalizeTime(seq[1])
           const endTime = normalizeTime(seq[2])
-          if (startTime && endTime) return { kind: 'start_end', employeeQuery, dateISO: todayISO(), startTime, endTime }
+          if (startTime && endTime) return { kind: 'start_end', employeeQuery, dateISO, startTime, endTime }
         }
 
         if (seq.length >= 2) {
           const employeeQuery = seq[0]
           const workedHours = parseWorkedHours(seq[1])
-          if (workedHours != null) return { kind: 'hours_only', employeeQuery, dateISO: todayISO(), workedHours }
+          if (workedHours != null) return { kind: 'hours_only', employeeQuery, dateISO, workedHours }
         }
 
-        return { kind: 'error', message: 'No pude interpretar el bloque HORAS' }
+        return { kind: 'error', message: `No pude interpretar el bloque HORAS.\n\n${HORAS_EXAMPLE}` }
       }
     }
   }
 
   // ── TARIFA inline (una sola línea, cualquier capitalización) ──
-const tarifaOneLine = s.match(/^TARIFA\s+(.+)\s+(\d+(?:[.,]\d+)?)$/i)
-if (tarifaOneLine) {
+  const tarifaOneLine = s.match(/^TARIFA\s+(.+)\s+(\d+(?:[.,]\d+)?)$/i)
+  if (tarifaOneLine) {
+    return {
+      kind: 'set_rate',
+      employeeName: tarifaOneLine[1].trim(),
+      hourlyRate: Number(tarifaOneLine[2].replace(',', '.'))
+    }
+  }
+
+  // FORMATO SIMPLE UNA LINEA
+  const oneLine = s.replace(/[ \t]+/g, ' ').trim()
+
+  // Detectar fecha en cualquier formato (dd/mm/yyyy o yyyy-mm-dd) en la línea
+  let dateInLine = oneLine.match(/\b(\d{1,2}\/\d{1,2}\/\d{4})\b/)
+  if (!dateInLine) {
+    dateInLine = oneLine.match(/\b(\d{4}-\d{1,2}-\d{1,2})\b/)
+  }
+  let lineWithoutDate = oneLine
+  let extractedDateISO = todayISO()
+
+  if (dateInLine) {
+    const parsedDate = parseDateToISO(dateInLine[1])
+    if (parsedDate) {
+      extractedDateISO = parsedDate
+      lineWithoutDate = oneLine.replace(dateInLine[0], '').replace(/[,\s]+/g, ' ').trim()
+    }
+  }
+
+  const reStartEnd = /^(.+?)[,\s]+(\d{1,2}(?::\d{2})?)[,\s]+(\d{1,2}(?::\d{2})?)$/i
+  // Acepta sufijo opcional "h"/"hs"/"hora"/"horas" después del número.
+  // El nombre NO puede contener dígitos — así "Juan 9 17" NO matchea (sería
+  // nombre="Juan 9", horas=17) y cae a start_end como debe.
+  const reHoursOnly = /^([^\d]+?)[,\s]+(\d+(?:[.,]\d+)?)\s*(?:h|hs|hora|horas)?$/i
+
+  // Probamos hours_only ANTES que start_end para que "Juan 8,5" no se interprete
+  // como start=8, end=5 (overnight 21h).
+  const m2 = lineWithoutDate.match(reHoursOnly)
+  if (m2) {
+    const employeeQuery = m2[1].trim()
+    const workedHours = parseWorkedHours(m2[2])
+    if (workedHours != null) {
+      return {
+        kind: 'hours_only',
+        employeeQuery,
+        dateISO: extractedDateISO,
+        workedHours
+      }
+    }
+  }
+
+  const m1 = lineWithoutDate.match(reStartEnd)
+  if (m1) {
+    const employeeQuery = m1[1].trim()
+    const startTime = normalizeTime(m1[2])
+    const endTime = normalizeTime(m1[3])
+    if (startTime && endTime) {
+      return {
+        kind: 'start_end',
+        employeeQuery,
+        dateISO: extractedDateISO,
+        startTime,
+        endTime
+      }
+    }
+  }
+
   return {
-    kind: 'set_rate',
-    employeeName: tarifaOneLine[1].trim(),
-    hourlyRate: Number(tarifaOneLine[2].replace(',', '.'))
+    kind: 'error',
+    message: 'No pude interpretar el mensaje.'
   }
-}
-
-// FORMATO SIMPLE UNA LINEA
-const oneLine = s.replace(/[ \t]+/g, ' ').trim()
-
-// Intentar detectar fecha en la línea (dd/mm/yyyy)
-const dateInLine = oneLine.match(/\b(\d{1,2}\/\d{1,2}\/\d{4})\b/)
-let lineWithoutDate = oneLine
-let extractedDateISO = todayISO()
-
-if (dateInLine) {
-  const parsedDate = parseDateToISO(dateInLine[1])
-  if (parsedDate) {
-    extractedDateISO = parsedDate
-    lineWithoutDate = oneLine.replace(dateInLine[0], '').replace(/[,\s]+/g, ' ').trim()
-  }
-}
-
-const reStartEnd = /^(.+?)[,\s]+(\d{1,2}(?::\d{2})?)[,\s]+(\d{1,2}(?::\d{2})?)$/i
-const reHoursOnly = /^(.+?)[,\s]+(\d+(?:[.,]\d+)?)$/i
-
-const m1 = lineWithoutDate.match(reStartEnd)
-if (m1) {
-  const employeeQuery = m1[1].trim()
-  const startTime = normalizeTime(m1[2])
-  const endTime = normalizeTime(m1[3])
-  if (startTime && endTime) {
-    return {
-      kind: 'start_end',
-      employeeQuery,
-      dateISO: extractedDateISO,
-      startTime,
-      endTime
-    }
-  }
-}
-
-const m2 = lineWithoutDate.match(reHoursOnly)
-if (m2) {
-  const employeeQuery = m2[1].trim()
-  const workedHours = parseWorkedHours(m2[2])
-  if (workedHours != null) {
-    return {
-      kind: 'hours_only',
-      employeeQuery,
-      dateISO: extractedDateISO,
-      workedHours
-    }
-  }
-}
-
-return {
-  kind: 'error',
-  message: 'No pude interpretar el mensaje.'
-}
 }
 
 export {

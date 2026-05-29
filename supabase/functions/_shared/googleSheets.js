@@ -1,3 +1,5 @@
+import { formatDateDDMMYYYY, formatNumberES } from './text.js'
+
 async function getGoogleAccessToken() {
   const serviceAccountJson = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON")
   if (!serviceAccountJson) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON env var missing")
@@ -93,14 +95,31 @@ export function getWeekOfMonth(dateISO) {
   return Math.min(weekNum, 4)
 }
 
+function parseSheetError(body, sheetName) {
+  try {
+    const j = JSON.parse(body)
+    const msg = j?.error?.message ?? body
+    if (/unable to parse range/i.test(msg)) {
+      return `la pestaña "${sheetName}" no existe en el spreadsheet`
+    }
+    if (/permission/i.test(msg) || /forbidden/i.test(msg)) {
+      return `el service account no tiene permiso de Editor sobre el spreadsheet`
+    }
+    return msg
+  } catch {
+    return body
+  }
+}
+
 async function readSheet(token, spreadsheetId, sheetName) {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}!A:Z`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
   })
   if (!res.ok) {
-    console.error("Error leyendo sheet:", await res.text())
-    return []
+    const body = await res.text()
+    console.error("Error leyendo sheet:", body)
+    throw new Error(parseSheetError(body, sheetName))
   }
   const data = await res.json()
   return data.values ?? []
@@ -121,7 +140,11 @@ async function writeRow(token, spreadsheetId, sheetName, rowIndex, values) {
     body: JSON.stringify({ values: [values] })
   })
 
-  if (!res.ok) console.error("Error escribiendo fila:", await res.text())
+  if (!res.ok) {
+    const body = await res.text()
+    console.error("Error escribiendo fila:", body)
+    throw new Error(parseSheetError(body, sheetName))
+  }
 }
 
 async function appendRow(token, spreadsheetId, sheetName, values) {
@@ -138,7 +161,11 @@ async function appendRow(token, spreadsheetId, sheetName, values) {
     body: JSON.stringify({ values: [values] })
   })
 
-  if (!res.ok) console.error("Error en append:", await res.text())
+  if (!res.ok) {
+    const body = await res.text()
+    console.error("Error en append:", body)
+    throw new Error(parseSheetError(body, sheetName))
+  }
 }
 
 // ─── Funciones principales ───────────────────────────────────────────────────
@@ -154,12 +181,14 @@ export async function appendWorkLogToCompanySheet(supabase, workLog) {
 
   if (!company) return
 
+  // El apóstrofe al principio fuerza a Sheets a guardar la celda como texto
+  // (sin parsear como fecha y mostrarla con el formato automático yyyy-mm-dd).
   const row = [
-    workLog.dateISO,
+    `'${formatDateDDMMYYYY(workLog.dateISO)}`,
     workLog.employeeName,
     workLog.startTime ?? "",
     workLog.endTime ?? "",
-    workLog.workedHours,
+    formatNumberES(workLog.workedHours),
     workLog.bossName,
     company.name
   ]
@@ -177,7 +206,11 @@ export async function appendWorkLogToCompanySheet(supabase, workLog) {
     body: JSON.stringify({ values: [row] })
   })
 
-  if (!res.ok) console.error("Google Sheets error:", await res.text())
+  if (!res.ok) {
+    const body = await res.text()
+    console.error("Google Sheets error:", body)
+    throw new Error(parseSheetError(body, company.google_sheet_name))
+  }
 }
 
 export async function updateWorkLogInSheet(supabase, workLog) {
@@ -193,22 +226,28 @@ export async function updateWorkLogInSheet(supabase, workLog) {
 
   const rows = await readSheet(token, company.google_spreadsheet_id, company.google_sheet_name)
 
+  // La fila puede haberse escrito en dd/mm/yyyy (formato nuevo) o yyyy-mm-dd
+  // (filas legacy escritas antes del cambio de formato). Aceptamos ambos al buscar.
+  const isoDate = workLog.dateISO?.slice(0, 10)
+  const displayDate = formatDateDDMMYYYY(workLog.dateISO)
+
   let rowIndex = -1
   for (let i = 1; i < rows.length; i++) {
     const rowDate = (rows[i][0] ?? "").trim()
     const rowName = (rows[i][1] ?? "").trim().toLowerCase()
-    if (rowDate === workLog.dateISO && rowName === workLog.employeeName.toLowerCase()) {
+    const dateMatches = rowDate === displayDate || rowDate === isoDate
+    if (dateMatches && rowName === workLog.employeeName.toLowerCase()) {
       rowIndex = i
       break
     }
   }
 
   const newRow = [
-    workLog.dateISO,
+    `'${displayDate}`,
     workLog.employeeName,
     workLog.startTime ?? "",
     workLog.endTime ?? "",
-    workLog.workedHours,
+    formatNumberES(workLog.workedHours),
     workLog.bossName,
     company.name
   ]
@@ -255,25 +294,26 @@ export async function updateWeeklySheet(supabase, workLog, hourlyRate) {
   }
 
   if (rowIndex !== -1) {
-    // Empleado ya existe — sumar horas
-    const prevHours = parseFloat(rows[rowIndex][1] ?? "0") || 0
+    // Empleado ya existe — sumar horas.
+    // Re-parsear el valor de la celda (puede estar guardado como "1500,50" o "1500.5").
+    const prevHours = parseFloat(String(rows[rowIndex][1] ?? "0").replace(',', '.')) || 0
     const newHours = Math.round((prevHours + workLog.workedHours) * 100) / 100
     const total = Math.round(newHours * hourlyRate * 100) / 100
 
     await writeRow(token, spreadsheetId, sheetName, rowIndex, [
       workLog.employeeName,
-      newHours,
-      hourlyRate,
-      total
+      formatNumberES(newHours),
+      formatNumberES(hourlyRate),
+      formatNumberES(total)
     ])
   } else {
     // Empleado nuevo en esta semana — append
     const total = Math.round(workLog.workedHours * hourlyRate * 100) / 100
     await appendRow(token, spreadsheetId, sheetName, [
       workLog.employeeName,
-      workLog.workedHours,
-      hourlyRate,
-      total
+      formatNumberES(workLog.workedHours),
+      formatNumberES(hourlyRate),
+      formatNumberES(total)
     ])
   }
 }
@@ -314,7 +354,7 @@ export async function updateWeeklySheetOnEdit(supabase, workLog, hourlyRate, pre
     return
   }
 
-  const prevAccumulated = parseFloat(rows[rowIndex][1] ?? "0") || 0
+  const prevAccumulated = parseFloat(String(rows[rowIndex][1] ?? "0").replace(',', '.')) || 0
   // Restar horas viejas, sumar nuevas
   const newHours = Math.max(
     Math.round((prevAccumulated - previousHours + workLog.workedHours) * 100) / 100,
@@ -324,9 +364,9 @@ export async function updateWeeklySheetOnEdit(supabase, workLog, hourlyRate, pre
 
   await writeRow(token, spreadsheetId, sheetName, rowIndex, [
     workLog.employeeName,
-    newHours,
-    hourlyRate,
-    total
+    formatNumberES(newHours),
+    formatNumberES(hourlyRate),
+    formatNumberES(total)
   ])
 }
 
@@ -394,4 +434,49 @@ async function _clearSheetKeepHeader(token, spreadsheetId, sheetName) {
  */
 export function getExportUrl(spreadsheetId) {
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=xlsx`
+}
+
+/**
+ * Cuando se cambia la tarifa de un empleado, recorrer las 4 hojas semanales
+ * y recalcular Total = Horas × nuevaTarifa para ese empleado.
+ */
+export async function recalculateEmployeeWeeklyTotals(supabase, companyId, employeeName, newRate) {
+  const token = await getGoogleAccessToken()
+
+  const { data: company } = await supabase
+    .from("companies")
+    .select("google_spreadsheet_id")
+    .eq("id", companyId)
+    .maybeSingle()
+
+  if (!company?.google_spreadsheet_id) return
+
+  const spreadsheetId = company.google_spreadsheet_id
+  const targetName = employeeName.toLowerCase()
+
+  for (let w = 1; w <= 4; w++) {
+    const sheetName = `Semana ${w}`
+    const rows = await readSheet(token, spreadsheetId, sheetName)
+
+    let rowIndex = -1
+    for (let i = 1; i < rows.length; i++) {
+      const rowName = (rows[i][0] ?? "").trim().toLowerCase()
+      if (rowName === targetName) {
+        rowIndex = i
+        break
+      }
+    }
+
+    if (rowIndex === -1) continue
+
+    const hours = parseFloat(String(rows[rowIndex][1] ?? "0").replace(',', '.')) || 0
+    const total = Math.round(hours * newRate * 100) / 100
+
+    await writeRow(token, spreadsheetId, sheetName, rowIndex, [
+      employeeName,
+      formatNumberES(hours),
+      formatNumberES(newRate),
+      formatNumberES(total)
+    ])
+  }
 }
