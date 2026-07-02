@@ -243,6 +243,21 @@ Estado base: 2-3 empleados activos, alguno con tarifa.
 
 ---
 
+## Roadmap post-piloto
+
+Ideas para cuando el cliente vuelva a las 2-3 semanas con feedback real (no implementar antes — diseñá con datos de uso, no con suposiciones).
+
+- **Tracking de gastos.** Pestaña nueva `Gastos` en el mismo spreadsheet con columnas `Fecha | Concepto | Monto | Categoría | Cargado por`. Nueva tabla `expenses` en DB. Comandos:
+  - `GASTO 5000 nafta` → registra gasto
+  - `GASTO 5000 nafta combustible` → con categoría
+  - `GASTOS` → lista los del mes con total
+  - 🎙 "gasté 5000 en nafta"
+  - Preguntas a definir con cliente antes: ¿quién carga gastos (solo boss o también empleados)?, ¿categorías fijas o libres?, ¿pagos a empleados van acá o aparte?, ¿se asignan a proyectos/clientes?
+- **Pago a empleados** (`PAGO Juan 50000`): registra cuándo se le pagó cuánto, se cruza con horas no pagadas. Sólo si el cliente lo pide explícitamente.
+- **Resumen mensual**: pestaña `Resumen mes` que cruza horas + gastos + pagos = neto por empleado y total.
+
+---
+
 ## Pendientes / known limitations
 
 Cosas identificadas que no están en el código todavía. Discutir con cliente antes de invertir.
@@ -325,10 +340,10 @@ Cosas identificadas que no están en el código todavía. Discutir con cliente a
 
 ### Re-verificar después del segundo deploy
 
-- [ ] `Juan 9 17` → registra start_end 9→17 (antes daba "Juan 9 no existe")
-- [ ] `Perez 9 17` → idem para Perez
-- [ ] 🎙 `Sosa` en ambigüedad → resuelve (antes daba "No entendí")
-- [ ] 🎙 `Perez` en ambigüedad → resuelve
-- [ ] 🎙 "Juan ocho" → registra 8h
-- [ ] 🎙 "Pedro cinco horas" → registra 5h
-- [ ] 🎙 "Juan ocho y media" → registra 8,5h
+- [x ] `Juan 9 17` → registra start_end 9→17 (antes daba "Juan 9 no existe")
+- [ x] `Perez 9 17` → idem para Perez
+- [0 ] 🎙 `Sosa` en ambigüedad → resuelve (antes daba "No entendí")
+- [0 ] 🎙 `Perez` en ambigüedad → resuelve
+- [x ] 🎙 "Juan ocho" → registra 8h
+- [x ] 🎙 "Pedro cinco horas" → registra 5h
+- [x ] 🎙 "Juan ocho y media" → registra 8,5h

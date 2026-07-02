@@ -81,11 +81,21 @@ export function parseIncomingMessage(text) {
   const s = raw.replace(/\t/g, ' ').replace(/\r/g, '').trim()
   const lines = s.split('\n').map(l => l.trim()).filter(Boolean)
 
+  // Ayuda: "?", "AYUDA", "HELP", "comandos" (mensaje entero, en cualquier caso).
+  const helpOneLine = raw.trim().toUpperCase()
+  if (helpOneLine === '?' || helpOneLine === 'AYUDA' || helpOneLine === 'HELP' || helpOneLine === 'COMANDOS') {
+    return { kind: 'help' }
+  }
+
   if (lines.length > 0) {
     // Primera palabra (no la línea entera) para detectar la categoría.
     // Permite "ALTA Juan Perez", "TARIFA Juan Perez 1500", etc. inline.
     const firstWord = lines[0].toUpperCase().split(/\s+/)[0]
-    const supportedCategory = ['HORAS', 'ALTA', 'BAJA', 'EMPLEADOS', 'EXPORTAR', 'BORRAR', 'TARIFA', 'TARIFAS']
+    const supportedCategory = ['HORAS', 'ALTA', 'BAJA', 'EMPLEADOS', 'EXPORTAR', 'BORRAR', 'TARIFA', 'TARIFAS', 'AYUDA', 'HELP', 'COMANDOS']
+
+    if (firstWord === 'AYUDA' || firstWord === 'HELP' || firstWord === 'COMANDOS') {
+      return { kind: 'help' }
+    }
 
     if (supportedCategory.includes(firstWord)) {
       const category = firstWord
@@ -299,7 +309,7 @@ export function parseIncomingMessage(text) {
 
   return {
     kind: 'error',
-    message: 'No pude interpretar el mensaje.'
+    message: 'No pude interpretar el mensaje. Mandá AYUDA para ver los comandos disponibles.'
   }
 }
 

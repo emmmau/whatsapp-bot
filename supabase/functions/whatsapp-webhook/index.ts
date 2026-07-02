@@ -433,6 +433,95 @@ Deno.serve(async (req) => {
     return new Response('ok')
   }
 
+  // -------- AYUDA --------
+  if (parsed.kind === 'help') {
+    const helpText =
+`🤖 *Comandos disponibles*
+
+📝 *REGISTRAR HORAS*
+
+_En 1 línea (rápido):_
+• \`Juan 8\` → 8 horas hoy
+• \`Juan 8,5\` → 8 horas y media
+• \`Juan 8 horas\` → también con "horas", "hs", "h"
+• \`Juan, 8\` → con coma también vale
+• \`Juan 9 17\` → entrada 9, salida 17
+• \`Juan 09:00 18:00\` → con minutos
+• \`Juan 22:00 06:00\` → turno nocturno (calcula 8h)
+• \`Juan 02/06/2026 8\` → fecha específica
+• \`Juan 02/06/2026 09:00 18:00\` → fecha + horarios
+
+_En bloque con etiquetas_ (orden libre):
+HORAS
+Empleado: Juan Pérez
+Fecha: 02/06/2026
+Entrada: 09:00
+Salida: 18:00
+
+_O sólo horas totales:_
+HORAS
+Empleado: Juan Pérez
+Fecha: 02/06/2026
+Horas: 8
+
+_En bloque sin etiquetas_ (también vale):
+HORAS
+Juan Pérez
+02/06/2026
+09:00
+18:00
+
+👥 *EMPLEADOS*
+• \`ALTA Juan Pérez\` → crear empleado
+• \`BAJA Juan Pérez\` → desactivar empleado
+• \`EMPLEADOS\` → ver lista de activos
+
+_También en 2 líneas:_
+ALTA
+Juan Pérez
+
+💰 *TARIFAS*
+• \`TARIFA Juan Pérez 1500\` → fijar valor hora
+• \`TARIFA Juan Pérez 1500,50\` → con decimales
+• \`TARIFAS\` → ver tarifas de todos
+
+_También en 2 líneas:_
+TARIFA
+Juan Pérez 1500
+
+📊 *PLANILLA*
+• \`EXPORTAR\` → link al Excel
+• \`BORRAR SEMANA 1\` (o 2, 3, 4)
+• \`BORRAR MES\`
+_BORRAR siempre pide confirmación (1=sí, 2=no)._
+
+🎙 *POR AUDIO*
+Todos los comandos andan por audio. Ejemplos:
+• "Juan trabajó 8 horas hoy"
+• "Juan entró a las 9 y salió a las 17"
+• "El martes Juan hizo 6 horas"
+• "Pedro trabajó 7 horas el 15 de junio"
+• "Dar de alta a María González"
+• "Bajá a Pedro Gómez"
+• "La tarifa de Juan es 1500"
+• "Mostrame los empleados"
+• "Mostrame las tarifas"
+• "Mandame el Excel"
+• "Borrá la semana 2"
+
+💡 *TIPS*
+• Si hay varios empleados con el mismo nombre, respondé con el *número* o el *apellido* (por texto o audio).
+• Fechas: \`dd/mm/aaaa\` o \`aaaa-mm-dd\`.
+• Decimales con coma: \`8,5\` (no 8.5).
+• Re-registrar mismo empleado y misma fecha actualiza el anterior.
+• Los comandos no distinguen mayúsculas: \`alta\`, \`ALTA\` y \`Alta\` son iguales.
+
+❓ \`AYUDA\` → este mensaje`
+
+    await sendWhatsAppText(fromPhone, helpText)
+    return new Response('ok')
+  }
+
   // -------- EXPORTAR --------
   if (parsed.kind === 'export') {
     const { data: company } = await supabase

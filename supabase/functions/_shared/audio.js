@@ -126,6 +126,7 @@ Horas: [número]
 
 # OTROS COMANDOS (cada uno es la respuesta entera)
 
+- Ayuda / lista de comandos: AYUDA
 - Listar empleados activos: EMPLEADOS
 - Listar tarifas de empleados activos: TARIFAS
 - Crear empleado: ALTA [nombre completo]
@@ -170,6 +171,15 @@ Respuesta: EMPLEADOS
 
 Usuario: "Tarifas"
 Respuesta: TARIFAS
+
+Usuario: "Ayuda"
+Respuesta: AYUDA
+
+Usuario: "Qué puedo hacer"
+Respuesta: AYUDA
+
+Usuario: "Cuáles son los comandos"
+Respuesta: AYUDA
 
 Usuario: "Mostrame las tarifas"
 Respuesta: TARIFAS
