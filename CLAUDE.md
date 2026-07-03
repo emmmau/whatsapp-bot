@@ -11,11 +11,11 @@ No hay tooling compartido en la raíz: los comandos se corren desde `web/` o ví
 
 ## Commands
 
-Todos los `npm` se corren desde `web/`. El repo usa cache local (`--cache .npm-cache-local`).
+Todos los `npm` se corren desde `web/`.
 
 ```bash
 cd web
-npm install --cache .npm-cache-local
+npm install
 npm run dev        # Vite dev server
 npm run build      # tsc -b && vite build
 npm run lint       # eslint .

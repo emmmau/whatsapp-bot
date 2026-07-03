@@ -16,8 +16,6 @@ import {
 } from '../_shared/googleSheets.js'
 import { transcribeWhatsAppAudio, normalizeAudioWithAI } from '../_shared/audio.js'
 
-console.log("FUNCION NUEVA DEPLOYADA")
-
 const BOT_ENABLED = true
 
 type WhatsAppWebhookPayload = {
@@ -422,8 +420,6 @@ Deno.serve(async (req) => {
     await sendWhatsAppText(fromPhone, '⛔ Número no autorizado.')
     return new Response('ok')
   }
-
-  console.log("BOSS RESUELTO:", boss.name, "| COMPANY_ID:", boss.company_id)
 
   // -------- PARSEAR MENSAJE --------
   const parsed = parseIncomingMessage(text)

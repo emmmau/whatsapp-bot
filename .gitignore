@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.cursor/
+
+# npm / build caches (regenerables)
+.npm-cache/
+**/.npm-cache-local/
+node_modules/
+dist/
+dist-ssr/
+
+# Supabase CLI local state
+supabase/.temp/
+
+# Env / secrets
+.env
+.env.local
+*.local
